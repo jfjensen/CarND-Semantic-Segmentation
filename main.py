@@ -75,6 +75,7 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     deconv_layer_3 = tf.layers.conv2d_transpose(skip_2, deconv_layer_3_num_out, kernel_size=(16,16), strides=(8, 8), name='deconv_layer_3')
 
     return deconv_layer_3
+
 tests.test_layers(layers)
 
 
@@ -88,8 +89,17 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     :return: Tuple of (logits, train_op, cross_entropy_loss)
     """
     # TODO: Implement function
-    return None, None, None
-# tests.test_optimize(optimize)
+
+    logits = tf.reshape(nn_last_layer, (-1, num_classes))
+    labels = tf.reshape(correct_label, (-1, num_classes))
+
+    cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels))
+
+    train_op = tf.train.GradientDescentOptimizer(learning_rate).minimize(cross_entropy_loss)
+
+    return logits, train_op, cross_entropy_loss
+
+tests.test_optimize(optimize)
 
 
 def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image,
@@ -117,10 +127,14 @@ def run():
     image_shape = (160, 576)
     data_dir = './data'
     runs_dir = './runs'
+    learning_rate = 0.001
     tests.test_for_kitti_dataset(data_dir)
-
+    tf.logging.set_verbosity(tf.logging.DEBUG)
     # Download pretrained vgg model
     helper.maybe_download_pretrained_vgg(data_dir)
+
+
+    correct_label = tf.placeholder(tf.float32, [None, image_shape[0], image_shape[1], num_classes])
 
     # OPTIONAL: Train and Inference on the cityscapes dataset instead of the Kitti dataset.
     # You'll need a GPU with at least 10 teraFLOPS to train on.
@@ -135,18 +149,19 @@ def run():
 
         # OPTIONAL: Augment Images for better results
         #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
-        tf.logging.set_verbosity(tf.logging.DEBUG)
+
         # TODO: Build NN using load_vgg, layers, and optimize function
         image_input, keep_prob, layer3_out, layer4_out, layer7_out = load_vgg(sess, './data/vgg')
         output = layers(layer3_out, layer4_out, layer7_out, num_classes)
-        writer = tf.summary.FileWriter("output", sess.graph)
+        logits, train_op, cross_entropy_loss = optimize(output, correct_label, learning_rate, num_classes)
+        # writer = tf.summary.FileWriter("output", sess.graph)
         # TODO: Train NN using the train_nn function
 
         # TODO: Save inference data using helper.save_inference_samples
         #  helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
 
         # OPTIONAL: Apply the trained model to a video
-        writer.close()
+        # writer.close()
 
 if __name__ == '__main__':
     run()
