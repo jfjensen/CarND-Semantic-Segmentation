@@ -17,6 +17,8 @@ else:
     print('Default GPU Device: {}'.format(tf.test.gpu_device_name()))
 
 
+
+
 def load_vgg(sess, vgg_path):
     """
     Load Pretrained VGG Model into TensorFlow.
@@ -54,8 +56,26 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     :return: The Tensor for the last layer of output
     """
     # TODO: Implement function
-    return None
-# tests.test_layers(layers)
+    # print(vgg_layer3_out.get_shape().as_list())
+    # 1x1 Convolution
+    layer_1_1_num_out = vgg_layer7_out.get_shape().as_list()[3]
+    layer_1_1 = tf.layers.conv2d(vgg_layer7_out, layer_1_1_num_out, kernel_size=1, strides=1, name='layer_1_1')
+
+    deconv_layer_1_num_out = vgg_layer4_out.get_shape().as_list()[3] #num_classes
+    deconv_layer_1 = tf.layers.conv2d_transpose(layer_1_1, deconv_layer_1_num_out, kernel_size=(4,4), strides=(2, 2), name='deconv_layer_1')
+
+    skip_1 = tf.add(deconv_layer_1, vgg_layer4_out, name='skip_1')
+
+    deconv_layer_2_num_out = vgg_layer3_out.get_shape().as_list()[3]
+    deconv_layer_2 = tf.layers.conv2d_transpose(skip_1, deconv_layer_2_num_out, kernel_size=(4,4), strides=(2, 2), name='deconv_layer_2')
+
+    skip_2 = tf.add(deconv_layer_2, vgg_layer3_out, name='skip_2')
+
+    deconv_layer_3_num_out = num_classes
+    deconv_layer_3 = tf.layers.conv2d_transpose(skip_2, deconv_layer_3_num_out, kernel_size=(16,16), strides=(8, 8), name='deconv_layer_3')
+
+    return deconv_layer_3
+tests.test_layers(layers)
 
 
 def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
@@ -107,6 +127,7 @@ def run():
     #  https://www.cityscapes-dataset.com/
 
     with tf.Session() as sess:
+
         # Path to vgg model
         vgg_path = os.path.join(data_dir, 'vgg')
         # Create function to get batches
@@ -114,16 +135,18 @@ def run():
 
         # OPTIONAL: Augment Images for better results
         #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
-
+        tf.logging.set_verbosity(tf.logging.DEBUG)
         # TODO: Build NN using load_vgg, layers, and optimize function
-
+        image_input, keep_prob, layer3_out, layer4_out, layer7_out = load_vgg(sess, './data/vgg')
+        output = layers(layer3_out, layer4_out, layer7_out, num_classes)
+        writer = tf.summary.FileWriter("output", sess.graph)
         # TODO: Train NN using the train_nn function
 
         # TODO: Save inference data using helper.save_inference_samples
         #  helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
 
         # OPTIONAL: Apply the trained model to a video
-
+        writer.close()
 
 if __name__ == '__main__':
     run()
