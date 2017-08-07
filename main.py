@@ -34,15 +34,16 @@ def load_vgg(sess, vgg_path):
     vgg_layer4_out_tensor_name = 'layer4_out:0'
     vgg_layer7_out_tensor_name = 'layer7_out:0'
     tf.saved_model.loader.load(sess, [vgg_tag], vgg_path)
-    image_input = sess.graph.get_tensor_by_name(vgg_input_tensor_name)
-    keep_prob = sess.graph.get_tensor_by_name(vgg_keep_prob_tensor_name)
-    layer3_out = sess.graph.get_tensor_by_name(vgg_layer3_out_tensor_name)
-    layer4_out = sess.graph.get_tensor_by_name(vgg_layer4_out_tensor_name)
-    layer7_out = sess.graph.get_tensor_by_name(vgg_layer7_out_tensor_name)
+    vgg_graph = tf.get_default_graph()
+    image_input = vgg_graph.get_tensor_by_name(vgg_input_tensor_name)
+    keep_prob = vgg_graph.get_tensor_by_name(vgg_keep_prob_tensor_name)
+    layer3_out = vgg_graph.get_tensor_by_name(vgg_layer3_out_tensor_name)
+    layer4_out = vgg_graph.get_tensor_by_name(vgg_layer4_out_tensor_name)
+    layer7_out = vgg_graph.get_tensor_by_name(vgg_layer7_out_tensor_name)
 
     return image_input, keep_prob, layer3_out, layer4_out, layer7_out
 
-tests.test_load_vgg(load_vgg, tf)
+# tests.test_load_vgg(load_vgg, tf)
 
 
 def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
@@ -54,51 +55,70 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     :param num_classes: Number of classes to classify
     :return: The Tensor for the last layer of output
     """
-    # TODO: Implement function
-    # print(vgg_layer3_out.get_shape().as_list())
+    
+
     # 1x1 Convolution
-    layer_1_1_num_out = vgg_layer7_out.get_shape().as_list()[3]
+    layer_1_1_num_out = num_classes
     layer_1_1 = tf.layers.conv2d(vgg_layer7_out, 
                                     layer_1_1_num_out, 
                                     kernel_size=(1,1), 
-                                    strides=(1,1), 
-                                    activation=tf.nn.relu,
+                                    strides=(1,1),
                                     name='layer_1_1')
 
-    deconv_layer_1_num_out = vgg_layer4_out.get_shape().as_list()[3] #num_classes
+    # Deconvolution
+    deconv_layer_1_num_out = num_classes
     deconv_layer_1 = tf.layers.conv2d_transpose(layer_1_1, 
                                                 deconv_layer_1_num_out, 
                                                 kernel_size=(4,4), 
-                                                strides=(2, 2), 
+                                                strides=(2,2),
                                                 padding='same',
-                                                activation=tf.nn.relu,
                                                 name='deconv_layer_1')
 
-    skip_1 = tf.add(deconv_layer_1, vgg_layer4_out, name='skip_1')
+    # 1x1 Convolution
+    layer_1_2_num_out = num_classes
+    layer_1_2 = tf.layers.conv2d(vgg_layer4_out, 
+                                    layer_1_2_num_out, 
+                                    kernel_size=(1,1), 
+                                    strides=(1,1),
+                                    name='layer_1_2')
 
-    deconv_layer_2_num_out = vgg_layer3_out.get_shape().as_list()[3]
+    # Skip-link
+    skip_1 = tf.add(deconv_layer_1, layer_1_2, name='skip_1')
+
+
+    # Deconvolution
+    deconv_layer_2_num_out = num_classes
     deconv_layer_2 = tf.layers.conv2d_transpose(skip_1, 
                                                 deconv_layer_2_num_out, 
                                                 kernel_size=(4,4), 
-                                                strides=(2, 2),
+                                                strides=(2,2),
                                                 padding='same',
-                                                activation=tf.nn.relu,
                                                 name='deconv_layer_2')
 
-    skip_2 = tf.add(deconv_layer_2, vgg_layer3_out, name='skip_2')
+    # 1x1 Convolution
+    layer_1_3_num_out = num_classes
+    layer_1_3 = tf.layers.conv2d(vgg_layer3_out, 
+                                    layer_1_3_num_out, 
+                                    kernel_size=(1,1), 
+                                    strides=(1,1),
+                                    name='layer_1_3')
 
+    # Skip-link
+    skip_2 = tf.add(deconv_layer_2, layer_1_3, name='skip_2')
+
+
+    # Deconvolution
     deconv_layer_3_num_out = num_classes
     deconv_layer_3 = tf.layers.conv2d_transpose(skip_2, 
                                                 deconv_layer_3_num_out, 
                                                 kernel_size=(16,16), 
-                                                strides=(8, 8), 
+                                                strides=(8,8),
                                                 padding='same',
-                                                activation=tf.nn.relu,
                                                 name='deconv_layer_3')
 
     return deconv_layer_3
 
-tests.test_layers(layers)
+# tests.test_layers(layers)
 
 
 def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
@@ -117,11 +137,11 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
 
     cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels))
 
-    train_op = tf.train.GradientDescentOptimizer(learning_rate).minimize(cross_entropy_loss)
+    train_op = tf.train.AdamOptimizer(learning_rate).minimize(cross_entropy_loss)
 
     return logits, train_op, cross_entropy_loss
 
-tests.test_optimize(optimize)
+# tests.test_optimize(optimize)
 
 
 def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image,
@@ -140,30 +160,29 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param learning_rate: TF Placeholder for learning rate
     """
     # TODO: Implement function
-    rate = 0.001
-    dropout = 0.5
-    display_step = 1
-
-    step = 0
-     
-    for images, labels in get_batches_fn(batch_size):
-
-        print(images.shape)
-
-        sess.run(train_op, feed_dict={input_image: images, 
-                                        correct_label: labels,
-                                        keep_prob: dropout,
-                                        learning_rate: rate})
+    rate = 0.0001
+    dropout = 0.2
+    display_step = 50
 
         
-        if step % display_step == 0:
-            loss = sess.run(cross_entropy_loss, feed_dict={input_image: images, 
-                                                        correct_label: labels, 
-                                                        keep_prob: 1.0})
-            print("Iter: " + str(step) + " Loss: {:.6f}".format(loss))
-        step += 1
+    for e in range(epochs):
+        step = 0
+        for images, labels in get_batches_fn(batch_size):
+
+            sess.run(train_op, feed_dict={input_image: images, 
+                                            correct_label: labels,
+                                            keep_prob: dropout,
+                                            learning_rate: rate})
+
+            
+            if step % display_step == 0:
+                loss = sess.run(cross_entropy_loss, feed_dict={input_image: images, 
+                                                            correct_label: labels, 
+                                                            keep_prob: 1.0})
+                print("Epoch: " + str(e)+ " Iter: " + str(step) + " Loss: {:.6f}".format(loss))
+            step += 1
         
-        pass
+       
 
 tests.test_train_nn(train_nn)
 
@@ -174,8 +193,8 @@ def run():
     data_dir = './data'
     runs_dir = './runs'
    
-    epochs = 20
-    batch_size = 5
+    epochs = 25
+    batch_size = 1
 
 
     tests.test_for_kitti_dataset(data_dir)
@@ -183,7 +202,6 @@ def run():
     # Download pretrained vgg model
     helper.maybe_download_pretrained_vgg(data_dir)
 
-    # input_image = tf.placeholder(tf.float32, [None, image_shape[0], image_shape[1], num_classes])
     correct_label = tf.placeholder(tf.float32, [None, image_shape[0], image_shape[1], num_classes])
     learning_rate = tf.placeholder(tf.float32)
     keep_prob = tf.placeholder(tf.float32)
@@ -196,10 +214,11 @@ def run():
         
         # Path to vgg model
         vgg_path = os.path.join(data_dir, 'vgg')
+        
         # Create function to get batches
         get_batches_fn = helper.gen_batch_function(os.path.join(data_dir, 'data_road/training'), image_shape)
         num_images = len(glob.glob(os.path.join(data_dir, 'data_road/training/calib/*.*')))
-        # batch_per_epoch = int(num_images/batch_size) + 1
+        
         print("Num images: " + str(num_images) + " Batch size: " + str(batch_size))
         
 
@@ -218,7 +237,7 @@ def run():
 
 
         # TODO: Save inference data using helper.save_inference_samples
-        #  helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
+        helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, image_input)
 
         # OPTIONAL: Apply the trained model to a video
         # writer.close()
