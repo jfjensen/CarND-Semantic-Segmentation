@@ -160,8 +160,8 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param learning_rate: TF Placeholder for learning rate
     """
     # TODO: Implement function
-    rate = 0.0001
-    dropout = 0.2
+    rate = 0.0005
+    dropout = 0.8
     display_step = 50
 
         
@@ -193,7 +193,7 @@ def run():
     data_dir = './data'
     runs_dir = './runs'
    
-    epochs = 25
+    epochs = 15
     batch_size = 1
 
 
